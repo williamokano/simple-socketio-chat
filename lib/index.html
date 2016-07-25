@@ -1,0 +1,167 @@
+<!doctype html>
+<html>
+<head>
+    <title>Chat com um pouquinho de lei</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font: 13px Helvetica, Arial; margin-bottom: 35px;}
+        form { background: #000; padding: 3px; position: fixed; bottom: 0; width: 100%; }
+        form select { height: 35px; width: 13%; }
+        form input { border: 0; padding: 10px; width: 75%; margin-right: .5%; }
+        form button { width: 10%; background: rgb(130, 224, 255); border: none; padding: 10px; }
+        #messages { list-style-type: none; margin: 0; padding: 0; margin-right: 200px;}
+        #messages li { padding: 5px 10px; }
+        #messages li:nth-child(odd) { background: #eee; }
+
+
+        #online {
+            right: 0;
+            position: fixed;
+            top: 0;
+            width: 200px;
+            height: 100%;
+            background: #3d3d3d;
+            padding: 15px;
+            color: #FFF;
+        }
+    </style>
+</head>
+<body>
+<div id="online">
+    <ul id="users">
+
+    </ul>
+</div>
+<ul id="messages">
+    <li>Bem-vindo ao chat com pseudo-leis</li>
+</ul>
+<form action="">
+    <select id="u">
+        <option value="all">Geral</option>
+    </select>
+    <input id="m" autocomplete="off" />
+    <button id="btnMandar">Mandar</button>
+</form>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="//code.jquery.com/jquery-1.11.1.js"></script>
+<script>
+    var socket = io();
+    promptForNick();
+    // if (localStorage.getItem('nick')) {
+    //     setNick(localStorage.getItem('nick'));
+    // }
+
+    $('form').submit(() => {
+        var to = $("#u option:selected").val();
+    var message = $('#m').val();
+    if (to === 'all') {
+        socket.emit('chat message', message);
+    } else {
+        socket.emit('chat message', '/w ' + to + ' ' + message);
+    }
+    $('#m').val('');
+    return false;
+    });
+
+    $("#m").on('keyup', function (e) {
+        e.preventDefault();
+        if ($(this).val().length > 0) {
+            socket.emit('digitando', true);
+        } else {
+            socket.emit('digitando', false);
+        }
+        return false;
+    });
+
+    function setNick(nick) {
+        localStorage.setItem('nick', nick);
+        socket.emit('register nick', localStorage.getItem('nick'));
+    }
+
+    function resetNick() {
+        localStorage.removeItem('nick');
+    }
+
+    function promptForNick() {
+        if (localStorage.getItem('nick') === null) {
+            var nick = prompt('Qual teu nick?', 'Anonimo' + parseInt(Math.random() * 100, 10)).replace(/ /g,'');
+            localStorage.setItem('nick', nick);
+        }
+        setNick(localStorage.getItem('nick'));
+    }
+
+    socket.on('register nick', (accepted) => {
+        if (!accepted) {
+        resetNick();
+        promptForNick();
+    }
+    });
+
+    socket.on('reconnect', () => {
+        socket.emit('register nick', localStorage.getItem('nick'));
+    });
+
+    socket.on('chat message', (msg) => {
+        msg = parseBBCode(msg);
+    $('#messages').append($('<li/>').html(msg));
+    $("html, body").animate({ scrollTop: $(document).height() }, 1000);
+    });
+
+    socket.on('private chat message', (msg) => {
+        msg = parseBBCode(msg);
+    $('#messages').append($('<li/>').html('<strong>' + msg + '</strong>'));
+    $("html, body").animate({ scrollTop: $(document).height() }, 1000);
+    if (!msg.startsWith(localStorage.getItem('nick'))) {
+        notificar(msg);
+    }
+    });
+
+    function parseBBCode(msg) {
+        var parsedMsg = msg.replace(/\[b\](.*)\[\/b\]/gi, '<strong>$1</strong>');
+        parsedMsg = parsedMsg.replace(/\[img\](.*?)\[\/img\]/gi, '<img src="$1" />');
+        parsedMsg = parsedMsg.replace(/\[img=(.*?)\](.*?)\[\/img\]/gi, '<img src="$1" title="$2" />');
+        return parsedMsg;
+    }
+
+    function notificar(msg) {
+        if (!("Notification" in window)) {
+            console.log('No support for notifications');
+        }
+
+        else if (Notification.permission === "granted") {
+            var notification = new Notification(msg);
+        }
+
+        else if (Notification.permission !== "denied") {
+            Notification.requestPermission((permission) => {
+                if (permission === "granted") {
+                var notification = new Notification(msg);
+            }
+        });
+        }
+    }
+
+    socket.on('digitando', (nick, isTyping) => {
+        if (isTyping) {
+            $("#users option[value=" + nick + "]").html(nick + " (digitando)");
+        } else {
+            $("#users option[value=" + nick + "]").html(nick);
+    }
+    });
+
+    socket.on('update online', (users) => {
+        $("#u option").remove();
+    $("#users option").remove();
+
+    $("#u").append($("<option/>").val('all').html('Geral'));
+    users.forEach((user) => {
+        if (user !== localStorage.getItem('nick')) {
+        $("#u").append($("<option/>").val(user).html(user));
+    }
+    $("#users").append($("<option/>").val(user).html(user));
+    });
+    });
+</script>
+</body>
+</html>
