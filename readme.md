@@ -6,8 +6,8 @@ clone the project and run
 ```npm install```
 
 ##Running the project
-Just run
-```npm start```
+If you have ```nodemon``` just run ```npm start```, otherwise you need to install it
+running ```npm install -g nodemon``` and then run ```npm start```.
 
 ##Deploying
 
